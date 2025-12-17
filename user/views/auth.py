@@ -7,6 +7,12 @@ from rest_framework.permissions import AllowAny
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.exceptions import TokenError
 from ..serializers import RegistrationSerializer, LoginSerializer, CustomUserSerializer
+from shared.responses import (
+    handle_success,
+    handle_error,
+    handle_validation_error,
+    handle_not_found,
+)
 
 
 class RegistrationView(APIView):
@@ -25,8 +31,16 @@ class RegistrationView(APIView):
         if serializer.is_valid():
             user = serializer.save()
             user_serializer = CustomUserSerializer(user)
-            return Response(user_serializer.data, status=status.HTTP_201_CREATED)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+            return handle_success(
+                data=user_serializer.data,
+                message="User registered successfully.",
+                status_code=status.HTTP_201_CREATED
+            )
+        return handle_validation_error(
+            errors=serializer.errors,
+            message="Validation failed.",
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY
+        )
 
 class LoginView(APIView):
     permission_classes = [AllowAny]
@@ -45,14 +59,19 @@ class LoginView(APIView):
         if serializer.is_valid():
             user = serializer.validated_data['user']
             refresh = RefreshToken.for_user(user)
-            return Response(
-                {
-                    "access_token": str(refresh.access_token),
-                    "refresh_token": str(refresh)
+            return handle_success(
+                data={
+                    'refresh_token': str(refresh),
+                    'access_token': str(refresh.access_token),
                 },
-                status=status.HTTP_200_OK
+                message="Login successful.",
+                status_code=status.HTTP_200_OK
             )
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        return handle_validation_error(
+            errors=serializer.errors,
+            message="Validation failed.",
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY
+        )
 
 class LogoutView(APIView):
     permission_classes = [AllowAny]
@@ -80,12 +99,12 @@ class LogoutView(APIView):
             token = RefreshToken(refresh_token)
             token.blacklist()
             
-            return Response(
-                {"message": "Logout successful"},
-                status=status.HTTP_200_OK
+            return handle_success(
+                message="Logout successful.",
+                status_code=status.HTTP_200_OK
             )
         except TokenError:
-            return Response(
-                {"error": "Invalid or expired token"},
-                status=status.HTTP_400_BAD_REQUEST
+            return handle_error(
+                message="Invalid or expired token.",
+                status_code=status.HTTP_400_BAD_REQUEST
             )
